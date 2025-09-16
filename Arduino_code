@@ -1,0 +1,51 @@
+#include <Arduino.h>
+
+const float A = 0.001129148;
+const float B = 0.000234125;
+const float C = 0.0000000876741;
+
+const int NTC_PIN = A0;
+const int FAN_PIN = 13;
+
+float temperature = 0.0;
+int dutyCycle = 0;
+int fanState = 0;
+
+const int pwmPeriod = 1000;
+
+void setup() {
+  pinMode(FAN_PIN, OUTPUT);
+  Serial.begin(9600);
+}
+
+void loop() {
+  int rawADC = analogRead(NTC_PIN);
+  float resistance = (1023.0 / rawADC - 1.0) * 10000.0;
+  float lnR = log(resistance / 10000.0);
+  float steinhart = 1.0 / (A + B * lnR + C * pow(lnR, 3));
+  temperature = steinhart - 273.15;
+
+  if (temperature < 25.0) {
+    dutyCycle = 0;
+    fanState = 0;
+  } else if (temperature < 30.0) {
+    dutyCycle = 50;
+    fanState = 1;
+  } else {
+    dutyCycle = 100;
+    fanState = 2;
+  }
+
+  unsigned long now = micros();
+  unsigned long cycleTime = now % pwmPeriod;
+  digitalWrite(FAN_PIN, (cycleTime < dutyCycle * pwmPeriod / 100) ? HIGH : LOW);
+
+  Serial.print("Temperature: ");
+  Serial.print(temperature, 2);
+  Serial.print(" °C | Fan State: ");
+  if (fanState == 0) Serial.println("OFF");
+  else if (fanState == 1) Serial.println("50% Speed");
+  else Serial.println("100% Speed");
+
+  delay(500);
+}
